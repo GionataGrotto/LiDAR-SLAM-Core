@@ -1,0 +1,8 @@
+{
+    "cmake.configureSettings": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/Users/ggion/Installazioni/vcpkg/scripts/buildsystems/vcpkg.cmake"
+    },
+    "cmake.generator": "Visual Studio 17 2022",
+    "cmake.platform": "x64",
+    "C_Cpp.default.cppStandard": "c++17"
+}
