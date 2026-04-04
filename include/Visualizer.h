@@ -9,6 +9,12 @@
 #include <sstream>
 #include "Shader.h"
 
+enum AxisMapping {
+    XYZ,        // Standard OpenGL
+    XZY_INV,    // Stardard LiDAR (Z=Up, Y=inverted)
+    XminusZY    // Common variants
+};
+
 class Visualizer {
 public:
     Visualizer();
@@ -24,7 +30,7 @@ public:
     void setPointCloud(const std::vector<float>& points);
 
     // Legge file .pcd
-    bool loadPCD(const std::string& filepath);
+    bool loadPCD(const std::string& filepath, AxisMapping mode = XYZ);
 private:
     unsigned int gridVAO, gridVBO;
     int gridCount;

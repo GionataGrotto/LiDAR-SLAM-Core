@@ -94,7 +94,7 @@ void Visualizer::setPointCloud(const std::vector<float>& points) {
 }
 
 // Da migliorare. La legge storta per ora
-bool Visualizer::loadPCD(const std::string& filepath) {
+bool Visualizer::loadPCD(const std::string& filepath, AxisMapping mode) {
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open()) return false;
 
@@ -128,11 +128,21 @@ bool Visualizer::loadPCD(const std::string& filepath) {
         file.read(reinterpret_cast<char*>(raw_coords), sizeof(float) * 3);
 
         if (file.gcount() < sizeof(float) * 3) break; // Fine file inaspettata
+        
+        float finalX, finalY, finalZ;
+        switch(mode) {
+            case XZY_INV: 
+                finalX = raw_coords[0];  // X -> X
+                finalY = raw_coords[2];  // Z -> Y (Up)
+                finalZ = -raw_coords[1]; // Y -> Z (Forward)
+                break;
+            case XYZ:
+            default:
+                finalX = raw_coords[0]; finalY = raw_coords[1]; finalZ = raw_coords[2];
+                break;
+        }
 
-        // Inseriamo XYZ
-        points.push_back(raw_coords[0]); // X
-        points.push_back(raw_coords[1]); // Y
-        points.push_back(raw_coords[2]); // Z
+        points.push_back(finalX); points.push_back(finalY); points.push_back(finalZ);
 
         // Aggiungiamo un colore (es. Bianco/Azzurro) perché il nostro shader vuole RGB
         points.push_back(0.3f); // R

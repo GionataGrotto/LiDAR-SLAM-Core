@@ -75,7 +75,7 @@ int main() {
     visualizer.setPointCloud(points);
  */
     // Carica il tuo file (assicurati che sia nella cartella corretta)
-    if (!visualizer.loadPCD(R"(C:\Users\ggion\Downloads\Anovox_Sample\Anovox\Scenario_f593e8cb-4fe4-4d1a-845f-d6e8020fa9cc\PCD\PCD_6371.pcd)")) {
+    if (!visualizer.loadPCD(R"(C:\Users\ggion\Downloads\Anovox_Sample\Anovox\Scenario_f593e8cb-4fe4-4d1a-845f-d6e8020fa9cc\PCD\PCD_6371.pcd)", XZY_INV)) {
         std::cout << "File non trovato o formato non supportato." << std::endl;
     }
 
