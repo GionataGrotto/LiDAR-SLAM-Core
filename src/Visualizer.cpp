@@ -15,15 +15,33 @@ Visualizer::~Visualizer() {
 }
 
 void Visualizer::setupGrid(int size) {
-    std::vector<float> gridVertices;
+    std::vector<float> gridVertices((size*2+1)*12);
+
+    unsigned int index = 0;
+
     for (int i = -size; i <= size; i++) {
         // Linee lungo Z
-        gridVertices.push_back((float)i); gridVertices.push_back(0.0f); gridVertices.push_back(-(float)size);
-        gridVertices.push_back((float)i); gridVertices.push_back(0.0f); gridVertices.push_back((float)size);
+        // Start
+        gridVertices[index++] = static_cast<float>(i);
+        gridVertices[index++] = 0.0f;
+        gridVertices[index++] = -static_cast<float>(size);
+        // End
+        gridVertices[index++] = static_cast<float>(i);
+        gridVertices[index++] = 0.0f;
+        gridVertices[index++] = static_cast<float>(size);
+
         // Linee lungo X
-        gridVertices.push_back(-(float)size); gridVertices.push_back(0.0f); gridVertices.push_back((float)i);
-        gridVertices.push_back((float)size);  gridVertices.push_back(0.0f); gridVertices.push_back((float)i);
+        // Start
+        gridVertices[index++] = -static_cast<float>(size);
+        gridVertices[index++] = 0.0f;
+        gridVertices[index++] = static_cast<float>(i);
+
+        // End
+        gridVertices[index++] = static_cast<float>(size);
+        gridVertices[index++] = 0.0f;
+        gridVertices[index++] = static_cast<float>(i);
     }
+    
     gridCount = (int)gridVertices.size() / 3;
 
     if (gridVAO == 0) glGenVertexArrays(1, &gridVAO);
