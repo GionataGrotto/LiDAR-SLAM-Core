@@ -93,6 +93,64 @@ void Visualizer::setPointCloud(const std::vector<float>& points) {
     glBindVertexArray(0);
 }
 
+// Da migliorare. La legge storta per ora
+bool Visualizer::loadPCD(const std::string& filepath) {
+    std::ifstream file(filepath, std::ios::binary);
+    if (!file.is_open()) return false;
+
+    std::string line;
+    int numPoints = 0;
+    bool isBinary = false;
+
+    // 1. Leggi l'Header (formato testo)
+    while (std::getline(file, line)) {
+        if (line.find("POINTS") == 0) {
+            numPoints = std::stoi(line.substr(7));
+        }
+        if (line.find("DATA binary") == 0) {
+            isBinary = true;
+            break; // Dopo "DATA binary" iniziano i byte
+        }
+    }
+
+    if (!isBinary) {
+        std::cerr << "Errore: Il file non è in formato binary." << std::endl;
+        return false;
+    }
+
+    // 2. Lettura dei dati binari
+    std::vector<float> points;
+    points.reserve(numPoints * 6); // XYZ + RGB
+
+    for (int i = 0; i < numPoints; i++) {
+        float raw_coords[3];
+        // Leggiamo 12 byte (3 float x 4 byte)
+        file.read(reinterpret_cast<char*>(raw_coords), sizeof(float) * 3);
+
+        if (file.gcount() < sizeof(float) * 3) break; // Fine file inaspettata
+
+        // Inseriamo XYZ
+        points.push_back(raw_coords[0]); // X
+        points.push_back(raw_coords[1]); // Y
+        points.push_back(raw_coords[2]); // Z
+
+        // Aggiungiamo un colore (es. Bianco/Azzurro) perché il nostro shader vuole RGB
+        points.push_back(0.3f); // R
+        points.push_back(0.7f); // G
+        points.push_back(1.0f); // B
+    }
+
+    file.close();
+
+    if (!points.empty()) {
+        this->setPointCloud(points);
+        std::cout << "Successo! Caricati " << numPoints << " punti binari." << std::endl;
+        return true;
+    }
+
+    return false;
+}
+
 void Visualizer::draw(Shader& shader, const glm::mat4& view, const glm::mat4& projection) {
     shader.use();
     shader.setMat4("view", view);

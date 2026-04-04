@@ -4,6 +4,9 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <vector>
+#include <string>
+#include <fstream>
+#include <sstream>
 #include "Shader.h"
 
 class Visualizer {
@@ -20,6 +23,8 @@ public:
     // Carica una nuvola di punti (XYZ + RGB opzionale)
     void setPointCloud(const std::vector<float>& points);
 
+    // Legge file .pcd
+    bool loadPCD(const std::string& filepath);
 private:
     unsigned int gridVAO, gridVBO;
     int gridCount;

@@ -55,7 +55,7 @@ int main() {
 
     // Configurazione Griglia
     visualizer.setupGrid(20);
-
+/* 
     // Generazione Nuvola di Punti di Test (5000 punti casuali)
     std::vector<float> points;
     points.reserve(5000 * 6); // 5000 punti * (XYZ + RGB)
@@ -73,6 +73,13 @@ int main() {
         points.insert(points.end(), {x, y, z, r, g, b});
     }
     visualizer.setPointCloud(points);
+ */
+    // Carica il tuo file (assicurati che sia nella cartella corretta)
+    if (!visualizer.loadPCD(R"(C:\Users\ggion\Downloads\Anovox_Sample\Anovox\Scenario_f593e8cb-4fe4-4d1a-845f-d6e8020fa9cc\PCD\PCD_6371.pcd)")) {
+        std::cout << "File non trovato o formato non supportato." << std::endl;
+    }
+
+
 
     // --- Loop di Rendering ---
     while (!glfwWindowShouldClose(window)) {
@@ -86,7 +93,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // Matrici di Trasformazione
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 1000.0f);
         glm::mat4 view = camera.GetViewMatrix();
 
         // Disegno delegato alla classe Visualizer
