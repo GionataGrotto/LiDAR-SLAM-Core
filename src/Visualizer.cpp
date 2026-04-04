@@ -58,7 +58,7 @@ void Visualizer::setPointCloud(const std::vector<float>& points) {
 
     // Attributo 0: Posizione (XYZ) - primi 3 float
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    glEnableVertexArrayAttrib(0);
+    glEnableVertexAttribArray(0);
 
     // Attributo 1. Colore (RGB) - successivi 3 float
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
