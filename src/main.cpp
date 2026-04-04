@@ -1,6 +1,5 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -11,75 +10,62 @@
 
 #include <iostream>
 #include <vector>
+#include <filesystem>
+#include <algorithm> // Per std::sort
 
-// --- Configurazione Finestra ---
+namespace fs = std::filesystem;
+
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
-// --- Stato Globale ---
-Camera camera(glm::vec3(0.0f, 2.0f, 10.0f)); // Posizionata un po' più in alto e indietro
+Camera camera(glm::vec3(0.0f, 5.0f, 20.0f)); 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-// Prototipi
+// Gestione Sequenza
+std::vector<std::string> pcdFiles;
+int currentFrameIndex = 0;
+float frameTimer = 0.0f;
+float frameDuration = 0.1f; // 10 FPS (cambia a 0.5 per andare più lento)
+bool paused = false;
+
 void processInput(GLFWwindow* window);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
 int main() {
-    // 1. Inizializzazione GLFW
     if (!glfwInit()) return -1;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "SLAM Engine - Point Cloud View", NULL, NULL);
-    if (window == NULL) {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "SLAM Engine - Sequence Player", NULL, NULL);
+    if (window == NULL) { glfwTerminate(); return -1; }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    // 2. Caricamento GLAD
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cout << "Failed to initialize GLAD" << std::endl;
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) return -1;
+    glEnable(GL_DEPTH_TEST);
+
+    Shader ourShader("shaders/default.vert", "shaders/default.frag");
+    Visualizer visualizer;
+    visualizer.setupGrid(50);
+
+    // 1. Raccogliamo e ordiniamo i file PCD
+    std::string path = R"(C:\Users\ggion\Downloads\Anovox_Sample\Anovox\Scenario_f593e8cb-4fe4-4d1a-845f-d6e8020fa9cc\PCD)";
+    for (const auto& entry : fs::directory_iterator(path)) {
+        if (entry.path().extension() == ".pcd") {
+            pcdFiles.push_back(entry.path().string());
+        }
+    }
+    std::sort(pcdFiles.begin(), pcdFiles.end()); // Fondamentale per l'ordine cronologico
+
+    if (pcdFiles.empty()) {
+        std::cout << "Nessun file PCD trovato!" << std::endl;
         return -1;
     }
 
-    glEnable(GL_DEPTH_TEST);
-
-    // 3. Shader e Visualizer
-    Shader ourShader("shaders/default.vert", "shaders/default.frag");
-    Visualizer visualizer;
-
-    // Configurazione Griglia
-    visualizer.setupGrid(20);
-/* 
-    // Generazione Nuvola di Punti di Test (5000 punti casuali)
-    std::vector<float> points;
-    points.reserve(5000 * 6); // 5000 punti * (XYZ + RGB)
-    for (int i = 0; i < 5000; i++) {
-        // Posizioni casuali (X: -10a10, Y: 0a5, Z: -10a10)
-        float x = ((rand() % 2000) / 100.0f) - 10.0f;
-        float y = ((rand() % 500) / 100.0f);
-        float z = ((rand() % 2000) / 100.0f) - 10.0f;
-        
-        // Colori basati sulla posizione (Sfumatura ciano/blu)
-        float r = 0.0f;
-        float g = y / 5.0f; 
-        float b = 1.0f;
-
-        points.insert(points.end(), {x, y, z, r, g, b});
-    }
-    visualizer.setPointCloud(points);
- */
-    // Carica il tuo file (assicurati che sia nella cartella corretta)
-    if (!visualizer.loadPCD(R"(C:\Users\ggion\Downloads\Anovox_Sample\Anovox\Scenario_f593e8cb-4fe4-4d1a-845f-d6e8020fa9cc\PCD\PCD_6371.pcd)", XZY_INV)) {
-        std::cout << "File non trovato o formato non supportato." << std::endl;
-    }
-
-
+    // Carichiamo il primo frame
+    visualizer.loadPCD(pcdFiles[currentFrameIndex], XZY_INV);
 
     // --- Loop di Rendering ---
     while (!glfwWindowShouldClose(window)) {
@@ -89,14 +75,23 @@ int main() {
 
         processInput(window);
 
-        glClearColor(0.05f, 0.05f, 0.05f, 1.0f); // Sfondo quasi nero
+        // 2. Logica di avanzamento automatico dei frame
+        if (!paused) {
+            frameTimer += deltaTime;
+            if (frameTimer >= frameDuration) {
+                frameTimer = 0.0f;
+                currentFrameIndex = (currentFrameIndex + 1) % pcdFiles.size();
+                visualizer.loadPCD(pcdFiles[currentFrameIndex], XZY_INV);
+                std::cout << "Riproduzione frame: " << currentFrameIndex << " / " << pcdFiles.size() << "\r" << std::flush;
+            }
+        }
+
+        glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Matrici di Trasformazione
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 1000.0f);
         glm::mat4 view = camera.GetViewMatrix();
 
-        // Disegno delegato alla classe Visualizer
         visualizer.draw(ourShader, view, projection);
 
         glfwSwapBuffers(window);
@@ -111,21 +106,19 @@ void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
-    // Movimento Camera
+    // Spazio per mettere in pausa/play
+    static bool spacePressed = false;
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !spacePressed) {
+        paused = !paused;
+        spacePressed = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) spacePressed = false;
+
+    // Movimento standard
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camera.ProcessKeyboard(FORWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera.ProcessKeyboard(BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera.ProcessKeyboard(RIGHT, deltaTime);
-
-    // Roll (Q ed E)
-    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-        camera.Roll -= 100.0f * deltaTime;
-        camera.updateCameraVectors();
-    }
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-        camera.Roll += 100.0f * deltaTime;
-        camera.updateCameraVectors();
-    }
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
