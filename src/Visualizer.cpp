@@ -153,6 +153,27 @@ bool Visualizer::loadPCD(const std::string& filepath, AxisMapping mode) {
     file.close();
 
     if (!points.empty()) {
+        // Compute mean for every XYZ
+        float avgX = 0;
+        float avgY = 0;
+        float avgZ = 0;
+        for (size_t i = 0; i < points.size(); i+=6) {
+            avgX += points[i];
+            avgY += points[i+1];
+            avgZ += points[i+2];
+        }
+        avgX /= numPoints; 
+        avgY /= numPoints; 
+        avgZ /= numPoints;
+
+        // Subtract the mean from each point to center the pointcloud
+        for(size_t i = 0; i < points.size(); i+=6) {
+            points[i] -= avgX; 
+            points[i+1] -= avgY; 
+            points[i+2] -= avgZ;
+        }
+
+
         this->setPointCloud(points);
         std::cout << "Successo! Caricati " << numPoints << " punti binari." << std::endl;
         return true;
