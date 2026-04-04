@@ -17,6 +17,7 @@ set(SOURCES
     src/main.cpp 
     src/Camera.cpp 
     src/Shader.cpp
+    src/Visualizer.cpp
 )
 
 # 4. Crea l'eseguibile

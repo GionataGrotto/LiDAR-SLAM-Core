@@ -7,15 +7,17 @@
 
 #include "Camera.h"
 #include "Shader.h"
+#include "Visualizer.h"
 
 #include <iostream>
+#include <vector>
 
 // --- Configurazione Finestra ---
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 // --- Stato Globale ---
-Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+Camera camera(glm::vec3(0.0f, 2.0f, 10.0f)); // Posizionata un po' più in alto e indietro
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
@@ -30,7 +32,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "SLAM Engine - Test 3D", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "SLAM Engine - Point Cloud View", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -45,59 +47,32 @@ int main() {
         return -1;
     }
 
-    // Abilitiamo il test di profondità (Z-Buffer)
     glEnable(GL_DEPTH_TEST);
 
-    // 3. Creazione Shader (controlla che i percorsi siano corretti rispetto alla build!)
-   Shader ourShader("shaders/default.vert", "shaders/default.frag");
+    // 3. Shader e Visualizer
+    Shader ourShader("shaders/default.vert", "shaders/default.frag");
+    Visualizer visualizer;
 
-    // 4. Dati del Triangolo di Test (Posizione XYZ + Colore RGB)
-    float vertices[] = {
-        // Posizioni          // Colori
-        -0.5f, -0.5f, 0.0f,  1.0f, 0.0f, 0.0f, // Rosso
-         0.5f, -0.5f, 0.0f,  0.0f, 1.0f, 0.0f, // Verde
-         0.0f,  0.5f, 0.0f,  0.0f, 0.0f, 1.0f  // Blu
-    };
+    // Configurazione Griglia
+    visualizer.setupGrid(20);
 
-    unsigned int VBO, VAO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
+    // Generazione Nuvola di Punti di Test (5000 punti casuali)
+    std::vector<float> points;
+    points.reserve(5000 * 6); // 5000 punti * (XYZ + RGB)
+    for (int i = 0; i < 5000; i++) {
+        // Posizioni casuali (X: -10a10, Y: 0a5, Z: -10a10)
+        float x = ((rand() % 2000) / 100.0f) - 10.0f;
+        float y = ((rand() % 500) / 100.0f);
+        float z = ((rand() % 2000) / 100.0f) - 10.0f;
+        
+        // Colori basati sulla posizione (Sfumatura ciano/blu)
+        float r = 0.0f;
+        float g = y / 5.0f; 
+        float b = 1.0f;
 
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // Attributo Posizione
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    // Attributo Colore
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-
-    std::vector<float> gridVertices;
-    int sizeGrid = 10;
-    for (int i = -sizeGrid; i <= sizeGrid; i++) {
-        // Linee parallele all'asse Z (da -10 a +10 su Z, fisse su X)
-        gridVertices.push_back((float)i); gridVertices.push_back(0.0f); gridVertices.push_back(-(float)sizeGrid);
-        gridVertices.push_back((float)i); gridVertices.push_back(0.0f); gridVertices.push_back((float)sizeGrid);
-
-        // Linee parallele all'asse X (da -10 a +10 su X, fisse su Z)
-        gridVertices.push_back(-(float)sizeGrid); gridVertices.push_back(0.0f); gridVertices.push_back((float)i);
-        gridVertices.push_back((float)sizeGrid);  gridVertices.push_back(0.0f); gridVertices.push_back((float)i);
+        points.insert(points.end(), {x, y, z, r, g, b});
     }
-
-    unsigned int gridVAO, gridVBO;
-    glGenVertexArrays(1, &gridVAO);
-    glGenBuffers(1, &gridVBO);
-
-    glBindVertexArray(gridVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, gridVBO);
-    glBufferData(GL_ARRAY_BUFFER, gridVertices.size() * sizeof(float), gridVertices.data(), GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
+    visualizer.setPointCloud(points);
 
     // --- Loop di Rendering ---
     while (!glfwWindowShouldClose(window)) {
@@ -107,55 +82,35 @@ int main() {
 
         processInput(window);
 
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClearColor(0.05f, 0.05f, 0.05f, 1.0f); // Sfondo quasi nero
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        ourShader.use();
-
-        // Matrice Proiezione
+        // Matrici di Trasformazione
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-        ourShader.setMat4("projection", projection);
-
-        // Matrice Vista (Dalla tua classe Camera!)
         glm::mat4 view = camera.GetViewMatrix();
-        ourShader.setMat4("view", view);
 
-        // --- PARTE DEL TRIANGOLO (COMMENTATA) ---
-        /*
-        glm::mat4 model = glm::mat4(1.0f);
-        ourShader.setMat4("model", model);
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-        */
-
-        // --- NUOVA PARTE: DISEGNO GRIGLIA ---
-        glm::mat4 gridModel = glm::mat4(1.0f); // La griglia sta all'origine
-        ourShader.setMat4("model", gridModel);
-        
-        glBindVertexArray(gridVAO); // Il VAO della griglia che abbiamo creato prima
-        glDrawArrays(GL_LINES, 0, gridVertices.size() / 3); 
+        // Disegno delegato alla classe Visualizer
+        visualizer.draw(ourShader, view, projection);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
     glfwTerminate();
     return 0;
 }
 
-// Gestione tastiera WASD + Q/E per il Roll
 void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
+    // Movimento Camera
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camera.ProcessKeyboard(FORWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera.ProcessKeyboard(BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera.ProcessKeyboard(RIGHT, deltaTime);
 
-    // Test del Roll (Q ed E)
+    // Roll (Q ed E)
     if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
         camera.Roll -= 100.0f * deltaTime;
         camera.updateCameraVectors();
