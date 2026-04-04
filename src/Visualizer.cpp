@@ -93,7 +93,6 @@ void Visualizer::setPointCloud(const std::vector<float>& points) {
     glBindVertexArray(0);
 }
 
-// Da migliorare. La legge storta per ora
 bool Visualizer::loadPCD(const std::string& filepath, AxisMapping mode) {
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open()) return false;
