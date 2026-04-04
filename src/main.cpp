@@ -74,6 +74,31 @@ int main() {
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
+
+    std::vector<float> gridVertices;
+    int sizeGrid = 10;
+    for (int i = -sizeGrid; i <= sizeGrid; i++) {
+        // Linee parallele all'asse Z (da -10 a +10 su Z, fisse su X)
+        gridVertices.push_back((float)i); gridVertices.push_back(0.0f); gridVertices.push_back(-(float)sizeGrid);
+        gridVertices.push_back((float)i); gridVertices.push_back(0.0f); gridVertices.push_back((float)sizeGrid);
+
+        // Linee parallele all'asse X (da -10 a +10 su X, fisse su Z)
+        gridVertices.push_back(-(float)sizeGrid); gridVertices.push_back(0.0f); gridVertices.push_back((float)i);
+        gridVertices.push_back((float)sizeGrid);  gridVertices.push_back(0.0f); gridVertices.push_back((float)i);
+    }
+
+    unsigned int gridVAO, gridVBO;
+    glGenVertexArrays(1, &gridVAO);
+    glGenBuffers(1, &gridVBO);
+
+    glBindVertexArray(gridVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, gridVBO);
+    glBufferData(GL_ARRAY_BUFFER, gridVertices.size() * sizeof(float), gridVertices.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+
     // --- Loop di Rendering ---
     while (!glfwWindowShouldClose(window)) {
         float currentFrame = static_cast<float>(glfwGetTime());
@@ -95,13 +120,20 @@ int main() {
         glm::mat4 view = camera.GetViewMatrix();
         ourShader.setMat4("view", view);
 
-        // Matrice Modello (Triangolo fermo al centro)
+        // --- PARTE DEL TRIANGOLO (COMMENTATA) ---
+        /*
         glm::mat4 model = glm::mat4(1.0f);
         ourShader.setMat4("model", model);
-
-        // Disegno
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 3);
+        */
+
+        // --- NUOVA PARTE: DISEGNO GRIGLIA ---
+        glm::mat4 gridModel = glm::mat4(1.0f); // La griglia sta all'origine
+        ourShader.setMat4("model", gridModel);
+        
+        glBindVertexArray(gridVAO); // Il VAO della griglia che abbiamo creato prima
+        glDrawArrays(GL_LINES, 0, gridVertices.size() / 3); 
 
         glfwSwapBuffers(window);
         glfwPollEvents();
