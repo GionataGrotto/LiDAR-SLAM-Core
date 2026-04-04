@@ -95,6 +95,7 @@ void Visualizer::setPointCloud(const std::vector<float>& points) {
 
 bool Visualizer::loadPCD(const std::string& filepath, AxisMapping mode) {
     std::ifstream file(filepath, std::ios::binary);
+
     if (!file.is_open()) return false;
 
     std::string line;
@@ -203,4 +204,115 @@ void Visualizer::draw(Shader& shader, const glm::mat4& view, const glm::mat4& pr
     }
 
     glBindVertexArray(0);
+}
+
+#include <thread>
+
+void Visualizer::loadPCDAsync(const std::string& filepath, AxisMapping mode) {
+    // Se il thread precedente non ha ancora finito o il thread principale 
+    // non ha ancora prelevato i dati, evitiamo di sovrascrivere o accumulare thread.
+    if (this->dataReady) {
+        return;
+    }
+
+    // Lanciamo un thread "fire-and-forget"
+    std::thread([this, filepath, mode]() {
+        std::ifstream file(filepath, std::ios::binary);
+        if (!file.is_open()) {
+            std::cerr << "Errore: Impossibile aprire " << filepath << std::endl;
+            return;
+        }
+
+        std::string line;
+        int numPoints = 0;
+        bool isBinary = false;
+
+        // 1. Parsing dell'Header (formato testo)
+        while (std::getline(file, line)) {
+            if (line.find("POINTS") == 0) {
+                numPoints = std::stoi(line.substr(7));
+            }
+            if (line.find("DATA binary") == 0) {
+                isBinary = true;
+                break; 
+            }
+        }
+
+        if (!isBinary || numPoints <= 0) {
+            return;
+        }
+
+        // 2. Lettura dei dati binari
+        std::vector<float> localPoints;
+        localPoints.reserve(numPoints * 6); // XYZ + RGB
+
+        for (int i = 0; i < numPoints; i++) {
+            float raw_coords[3];
+            file.read(reinterpret_cast<char*>(raw_coords), sizeof(float) * 3);
+
+            if (file.gcount() < sizeof(float) * 3) break;
+            
+            float finalX, finalY, finalZ;
+            switch(mode) {
+                case XZY_INV: 
+                    finalX = raw_coords[0];  // X -> X
+                    finalY = raw_coords[2];  // Z -> Y (Up in OpenGL)
+                    finalZ = -raw_coords[1]; // Y -> Z (Forward in OpenGL)
+                    break;
+                case XYZ:
+                default:
+                    finalX = raw_coords[0]; 
+                    finalY = raw_coords[1]; 
+                    finalZ = raw_coords[2];
+                    break;
+            }
+
+            // Inserimento coordinate
+            localPoints.push_back(finalX); 
+            localPoints.push_back(finalY); 
+            localPoints.push_back(finalZ);
+
+            // Inserimento Colore (Azzurro chiaro predefinito)
+            localPoints.push_back(0.3f); // R
+            localPoints.push_back(0.7f); // G
+            localPoints.push_back(1.0f); // B
+        }
+        file.close();
+
+        // 3. Auto-centramento (Media Mobile)
+        if (!localPoints.empty()) {
+            double sumX = 0, sumY = 0, sumZ = 0;
+            size_t actualPoints = localPoints.size() / 6;
+
+            for (size_t i = 0; i < localPoints.size(); i += 6) {
+                sumX += localPoints[i];
+                sumY += localPoints[i+1];
+                sumZ += localPoints[i+2];
+            }
+            
+            float avgX = (float)(sumX / actualPoints);
+            float avgY = (float)(sumY / actualPoints);
+            float avgZ = (float)(sumZ / actualPoints);
+
+            for (size_t i = 0; i < localPoints.size(); i += 6) {
+                localPoints[i]   -= avgX; 
+                localPoints[i+1] -= avgY; 
+                localPoints[i+2] -= avgZ;
+            }
+
+            // Spostiamo i dati nel buffer della classe e segnaliamo che siamo pronti
+            // Nota: threadPoints deve essere una variabile membro di Visualizer
+            this->threadPoints = std::move(localPoints);
+            this->dataReady = true; // Variabile atomica: segnala al thread principale di aggiornare
+        }
+    }).detach(); // Il thread corre in background e si autodistrugge al termine
+}
+
+void Visualizer::updateIfNeeded() {
+    if (dataReady) {
+        // Ora siamo nel thread principale, possiamo chiamare funzioni OpenGL
+        setPointCloud(threadPoints);
+        threadPoints.clear();
+        dataReady = false;
+    }
 }

@@ -75,14 +75,16 @@ int main() {
 
         processInput(window);
 
+        visualizer.updateIfNeeded();
+
         // 2. Logica di avanzamento automatico dei frame
         if (!paused) {
             frameTimer += deltaTime;
             if (frameTimer >= frameDuration) {
                 frameTimer = 0.0f;
                 currentFrameIndex = (currentFrameIndex + 1) % pcdFiles.size();
-                visualizer.loadPCD(pcdFiles[currentFrameIndex], XZY_INV);
-                std::cout << "Riproduzione frame: " << currentFrameIndex << " / " << pcdFiles.size() << "\r" << std::flush;
+                visualizer.loadPCDAsync(pcdFiles[currentFrameIndex], XZY_INV);
+                
             }
         }
 

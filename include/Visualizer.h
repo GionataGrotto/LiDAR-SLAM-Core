@@ -7,6 +7,8 @@
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <future>
+#include <atomic>
 #include "Shader.h"
 
 enum AxisMapping {
@@ -31,12 +33,20 @@ public:
 
     // Legge file .pcd
     bool loadPCD(const std::string& filepath, AxisMapping mode = XYZ);
+
+    void loadPCDAsync(const std::string& filepath, AxisMapping mode = XYZ);
+
+    void updateIfNeeded();
 private:
     unsigned int gridVAO, gridVBO;
     int gridCount;
 
     unsigned int pcVAO, pcVBO;
     unsigned int pcCount;
+
+    std::vector<float> threadPoints;
+    std::atomic<bool> dataReady{false};
+    std::atomic<bool> isFull{false};
 
     void setupDefaultGrid();
 };
