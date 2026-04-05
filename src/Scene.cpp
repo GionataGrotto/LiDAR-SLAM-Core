@@ -3,7 +3,7 @@
 
 void Scene::addFrame(const std::string& filepath, AxisMapping mode) {
     std::thread([this, filepath, mode]() {
-        std::vector<float> localPoints;
+        std::vector<glm::vec3> localPoints;
 
         if (Utils::parsePCD(filepath, localPoints, mode)) {
             Utils::centerPointCloud(localPoints);
@@ -15,7 +15,7 @@ void Scene::addFrame(const std::string& filepath, AxisMapping mode) {
     }).detach();
 }
 
-const std::vector<float>& Scene::getPointsToRender() {
+const std::vector<glm::vec3>& Scene::getPointsToRender() {
     std::lock_guard<std::mutex> lock(dataMutex);
     newDataAvailable = false;
     return currentPoints;

@@ -20,10 +20,10 @@ enum AxisMapping {
 namespace Utils {
     // Funzione principale di parsing: legge il file e riempie il vettore outPoints
     // Formato outPoints: [x1, y1, z1, r1, g1, b1, x2, y2, z2, ...]
-    bool parsePCD(const std::string& filepath, std::vector<float>& outPoints, AxisMapping mode);
+    bool parsePCD(const std::string& filepath, std::vector<glm::vec3>& outPoints, AxisMapping mode);
 
     // Funzione per centrare la nuvola di punti (calcola la media e la sottrae)
-    void centerPointCloud(std::vector<float>& points);
+    void centerPointCloud(std::vector<glm::vec3>& points);
 
     void processInput(GLFWwindow* window, float deltaTime, Camera& camera, bool& paused);
     

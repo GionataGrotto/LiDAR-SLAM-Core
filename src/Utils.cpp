@@ -2,7 +2,7 @@
 
 namespace Utils {
 
-    bool parsePCD(const std::string& filepath, std::vector<float>& outPoints, AxisMapping mode) {
+    bool parsePCD(const std::string& filepath, std::vector<glm::vec3>& outPoints, AxisMapping mode) {
         std::ifstream file(filepath, std::ios::binary);
         if (!file.is_open()) {
             std::cerr << "[Utils] Errore: impossibile aprire " << filepath << std::endl;
@@ -29,67 +29,39 @@ namespace Utils {
             return false;
         }
 
-        // 2. Allocazione memoria preventiva (cruciale per le performance)
-        outPoints.clear();
-        outPoints.reserve(numPoints * 6); // 3 coord + 3 colori
+        // Pre-allochiamo lo spazio per i vettori
+        outPoints.resize(numPoints); 
 
-        // 3. Lettura dati binari
-        for (int i = 0; i < numPoints; i++) {
-            float raw[3];
-            file.read(reinterpret_cast<char*>(raw), sizeof(float) * 3);
-            
-            if (file.gcount() < sizeof(float) * 3) break;
+        // Leggiamo TUTTI i punti in un colpo solo! 
+        // sizeof(glm::vec3) è esattamente 12 byte (3 * 4 byte del float)
+        file.read(reinterpret_cast<char*>(outPoints.data()), numPoints * sizeof(glm::vec3));
 
-            float fx, fy, fz;
-            
-            // Remapping degli assi in base al sensore
-            switch (mode) {
-                case XZY_INV:
-                    fx = raw[0];       // X -> X
-                    fy = raw[2];       // Z (Altezza LiDAR) -> Y (Up OpenGL)
-                    fz = -raw[1];      // Y (Profondità) -> -Z (Forward OpenGL)
-                    break;
-                case XYZ:
-                default:
-                    fx = raw[0]; fy = raw[1]; fz = raw[2];
-                    break;
+        // Se dobbiamo invertire gli assi (es. XZY_INV), lo facciamo "in place"
+        if (mode == XZY_INV) {
+            for (auto& p : outPoints) {
+                float oldY = p.y;
+                float oldZ = p.z;
+                p.y = oldZ;    // Z diventa Y (Up)
+                p.z = -oldY;   // Y diventa -Z (Forward)
             }
-
-            // Inserimento posizione
-            outPoints.push_back(fx);
-            outPoints.push_back(fy);
-            outPoints.push_back(fz);
-
-            // Inserimento colore di default (Azzurro per evidenziare la nuvola)
-            outPoints.push_back(0.2f); // R
-            outPoints.push_back(0.6f); // G
-            outPoints.push_back(1.0f); // B
         }
 
         file.close();
         return true;
     }
 
-    void centerPointCloud(std::vector<float>& points) {
+    void centerPointCloud(std::vector<glm::vec3>& points) {
         if (points.empty()) return;
 
-        double sumX = 0, sumY = 0, sumZ = 0;
-        size_t count = points.size() / 6;
-
-        for (size_t i = 0; i < points.size(); i += 6) {
-            sumX += points[i];
-            sumY += points[i+1];
-            sumZ += points[i+2];
+        glm::vec3 sum(0.0);
+        for (const auto& p : points) {
+            sum += p;
         }
 
-        float avgX = static_cast<float>(sumX / count);
-        float avgY = static_cast<float>(sumY / count);
-        float avgZ = static_cast<float>(sumZ / count);
+        glm::vec3 center = sum / static_cast<float>(points.size());
 
-        for (size_t i = 0; i < points.size(); i += 6) {
-            points[i]     -= avgX;
-            points[i + 1] -= avgY;
-            points[i + 2] -= avgZ;
+        for (auto& p : points) {
+            p -= center;
         }
     }
 

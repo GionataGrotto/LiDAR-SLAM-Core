@@ -24,9 +24,9 @@ public:
     void setupGrid(int size);
 
     // Carica una nuvola di punti (XYZ + RGB opzionale)
-    void setPointCloud(const std::vector<float>& points);
+    void setPointCloud(const std::vector<glm::vec3>& points);
 
-    void updateData(const std::vector<float>& points);
+    void updateData(const std::vector<glm::vec3>& points);
     
 private:
     unsigned int gridVAO, gridVBO;

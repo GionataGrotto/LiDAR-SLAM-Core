@@ -18,10 +18,10 @@ public:
 
     bool hasNewData() const { return newDataAvailable; }
     
-    const std::vector<float>& getPointsToRender();
+    const std::vector<glm::vec3>& getPointsToRender();
 
 private:
-    std::vector<float> currentPoints;
+    std::vector<glm::vec3> currentPoints;
     std::atomic<bool> newDataAvailable;
     std::mutex dataMutex;
 };
