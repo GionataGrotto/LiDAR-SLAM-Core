@@ -20,6 +20,7 @@ set(SOURCES
     src/Visualizer.cpp
     src/Utils.cpp
     src/Scene.cpp
+    src/Odometry.cpp
 )
 
 # 4. Crea l'eseguibile

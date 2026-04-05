@@ -3,107 +3,128 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "Camera.h"
-#include "Shader.h"
-#include "Visualizer.h"
-#include "Scene.h"
-#include "Utils.h"
-
 #include <iostream>
 #include <vector>
+#include <string>
 #include <filesystem>
 #include <algorithm>
 
-// --- Configurazione ---
-const unsigned int SCR_WIDTH = 1280;
-const unsigned int SCR_HEIGHT = 720;
+#include "Shader.h"
+#include "Visualizer.h"
+#include "Scene.h"
+#include "Odometry.h"
+#include "Camera.h"
 
-// --- Stato Globale ---
-Camera camera(glm::vec3(0.0f, 5.0f, 20.0f));
-float deltaTime = 0.0f;
-float lastFrame = 0.0f;
-bool paused = false;
+namespace fs = std::filesystem;
 
-// Dati della sequenza
-std::vector<std::string> pcdFiles;
-int currentFrameIndex = 0;
-float frameTimer = 0.0f;
-float frameDuration = 0.1f; // 10 FPS
+// Callback per il ridimensionamento della finestra
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
+}
 
 int main() {
-    // 1. Inizializzazione Finestra (GLFW + GLAD)
+    // 1. Inizializzazione GLFW
     if (!glfwInit()) return -1;
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gemini SLAM Engine", NULL, NULL);
-    if (!window) { glfwTerminate(); return -1; }
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "Anovox LiDAR SLAM", NULL, NULL);
+    if (!window) {
+        glfwTerminate();
+        return -1;
+    }
     glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, Utils::framebuffer_size_callback);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+
+    // 2. Inizializzazione GLAD
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) return -1;
 
     glEnable(GL_DEPTH_TEST);
 
-    // 2. Inizializzazione Componenti Core
-    Shader ourShader("shaders/default.vert", "shaders/default.frag");
-    Visualizer visualizer;
-    Scene scene; // Il nuovo cervello dei dati
-    
-    visualizer.setupGrid(50);
+    // 3. Setup Cartella PCD e Scansione File
+    std::string pcdPath = R"(C:\Users\ggion\Downloads\Anovox_Sample\Anovox\Scenario_f593e8cb-4fe4-4d1a-845f-d6e8020fa9cc\PCD)";
+    std::vector<std::string> pcdFiles;
 
-    // 3. Scansione Dataset
-    std::string path = R"(C:\Users\ggion\Downloads\Anovox_Sample\Anovox\Scenario_f593e8cb-4fe4-4d1a-845f-d6e8020fa9cc\PCD)";
-    for (const auto& entry : std::filesystem::directory_iterator(path)) {
-        if (entry.path().extension() == ".pcd") 
-            pcdFiles.push_back(entry.path().string());
-    }
-    std::sort(pcdFiles.begin(), pcdFiles.end());
-
-    if (pcdFiles.empty()) {
-        std::cerr << "Dataset non trovato!" << std::endl;
+    try {
+        for (const auto& entry : fs::directory_iterator(pcdPath)) {
+            if (entry.path().extension() == ".pcd") {
+                pcdFiles.push_back(entry.path().string());
+            }
+        }
+        // Ordiniamo i file per nome (fondamentale per la sequenza temporale)
+        std::sort(pcdFiles.begin(), pcdFiles.end());
+    } catch (const std::exception& e) {
+        std::cerr << "Errore accesso cartella: " << e.what() << std::endl;
         return -1;
     }
 
-    // Carichiamo il primo frame immediatamente
-    scene.addFrame(pcdFiles[currentFrameIndex], XZY_INV);
+    if (pcdFiles.empty()) {
+        std::cerr << "Nessun file .pcd trovato nella cartella!" << std::endl;
+        return -1;
+    }
 
-    // --- Loop di Rendering ---
+    // 4. Setup Componenti SLAM
+    Shader shader("shaders/default.vert", "shaders/default.frag");
+    Visualizer visualizer;
+    visualizer.setupGrid(50);
+    
+    Scene scene;
+    Odometry odometry;
+    Camera camera(glm::vec3(0.0f, 20.0f, 50.0f));
+
+    std::vector<glm::vec3> lastFrame;
+    glm::mat4 currentAutoPose = glm::mat4(1.0f);
+    size_t currentFileIdx = 0;
+
+    // Carichiamo il primo frame
+    scene.addFrame(pcdFiles[currentFileIdx], XZY_INV);
+
+    // 5. Loop Principale
     while (!glfwWindowShouldClose(window)) {
-        // A. Gestione Tempo
-        float currentFrame = static_cast<float>(glfwGetTime());
-        deltaTime = currentFrame - lastFrame;
-        lastFrame = currentFrame;
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, true);
 
-        // B. Input (Ora gestito in Utils)
-        Utils::processInput(window, deltaTime, camera, paused);
-
-        // C. Sincronizzazione Scena -> Visualizer
-        // Se la Scene ha finito di caricare i punti nel thread, li passiamo alla GPU
+        // LOGICA SLAM: Quando Scene ha finito di caricare un frame
         if (scene.hasNewData()) {
-            visualizer.updateData(scene.getPointsToRender());
-        }
+            const std::vector<glm::vec3>& currentFrame = scene.getPointsToRender();
 
-        // D. Logica di Avanzamento
-        if (!paused) {
-            frameTimer += deltaTime;
-            if (frameTimer >= frameDuration) {
-                frameTimer = 0.0f;
-                currentFrameIndex = (currentFrameIndex + 1) % pcdFiles.size();
+            if (!lastFrame.empty()) {
+                // Eseguiamo ICP (5 iterazioni per velocità)
+                glm::mat4 deltaPose = odometry.computeICP(lastFrame, currentFrame, 5);
                 
-                // Chiamata asincrona alla scena
-                scene.addFrame(pcdFiles[currentFrameIndex], XZY_INV);
+                // Aggiorniamo la posizione cumulativa
+                currentAutoPose = currentAutoPose * deltaPose;
+
+                // Debug in console
+                std::cout << "Elaborato: " << pcdFiles[currentFileIdx] << std::endl;
+                std::cout << "Auto Pos Z: " << currentAutoPose[3][2] << std::endl;
+            }
+
+            // Aggiorniamo la GPU
+            visualizer.updateData(currentFrame);
+            
+            // Prepariamo per il prossimo
+            lastFrame = currentFrame;
+
+            // Carichiamo il file successivo se disponibile
+            currentFileIdx++;
+            if (currentFileIdx < pcdFiles.size()) {
+                scene.addFrame(pcdFiles[currentFileIdx], XZY_INV);
+            } else {
+                std::cout << "--- Sequenza Completata ---" << std::endl;
             }
         }
 
-        // E. Rendering
-        glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
+        // 6. Rendering
+        glClearColor(0.05f, 0.05f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 1000.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 1280.0f / 720.0f, 0.1f, 1000.0f);
         glm::mat4 view = camera.GetViewMatrix();
 
-        visualizer.draw(ourShader, view, projection);
+        visualizer.draw(shader, view, projection);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
