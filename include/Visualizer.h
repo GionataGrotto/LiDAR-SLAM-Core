@@ -2,6 +2,7 @@
 #define VISUALIZER_H
 
 #include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <vector>
 #include <string>
@@ -10,12 +11,6 @@
 #include <future>
 #include <atomic>
 #include "Shader.h"
-
-enum AxisMapping {
-    XYZ,        // Standard OpenGL
-    XZY_INV,    // Stardard LiDAR (Z=Up, Y=inverted)
-    XminusZY    // Common variants
-};
 
 class Visualizer {
 public:
@@ -31,12 +26,8 @@ public:
     // Carica una nuvola di punti (XYZ + RGB opzionale)
     void setPointCloud(const std::vector<float>& points);
 
-    // Legge file .pcd
-    bool loadPCD(const std::string& filepath, AxisMapping mode = XYZ);
-
-    void loadPCDAsync(const std::string& filepath, AxisMapping mode = XYZ);
-
-    void updateIfNeeded();
+    void updateData(const std::vector<float>& points);
+    
 private:
     unsigned int gridVAO, gridVBO;
     int gridCount;

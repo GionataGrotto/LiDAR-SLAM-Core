@@ -18,6 +18,8 @@ set(SOURCES
     src/Camera.cpp 
     src/Shader.cpp
     src/Visualizer.cpp
+    src/Utils.cpp
+    src/Scene.cpp
 )
 
 # 4. Crea l'eseguibile
