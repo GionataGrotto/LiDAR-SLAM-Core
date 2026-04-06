@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
+find_package(Eigen3 CONFIG REQUIRED)
 
 # 2. Specifica dove sono gli header (.h)
 include_directories(include)
@@ -31,6 +32,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     glfw
     glm::glm
     glad::glad
+    Eigen3::Eigen
 )
 
 # 6. COPIA AUTOMATICA DEGLI SHADER (Fondamentale!)
