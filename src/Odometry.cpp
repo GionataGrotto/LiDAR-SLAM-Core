@@ -75,6 +75,8 @@ glm::mat4 Odometry::computeICP(const std::vector<glm::vec3>& source,
         for (auto& p : source_curr) {
             p = glm::vec4(T_step * glm::vec4(p,1.0f));
         }
+
+        T_total = T_step * T_total;
         
     }
     return T_total;
