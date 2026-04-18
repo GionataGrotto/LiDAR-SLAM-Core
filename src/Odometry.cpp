@@ -1,4 +1,5 @@
 #include "Odometry.h"
+#include "KDTree.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <limits>
 #include <Eigen/Dense>
@@ -12,32 +13,27 @@ glm::mat4 Odometry::computeICP(const std::vector<glm::vec3>& source,
     
     std::vector<glm::vec3> source_curr(source);
 
-    glm::vec3 centerSource = getCenterOfMass(source);
+    KDTree tree(target);
 
     for (unsigned int iter = 0; iter < iterations; ++iter) {
         std::vector<glm::vec3> target_matched;
         std::vector<glm::vec3> source_matched;
 
-        for (size_t i = 0; i < source_curr.size(); i+=100) {
+        for (size_t i = 0; i < source_curr.size(); i+=50) {
             glm::vec3 p_src = source_curr[i];
 
-            float min_dist = std::numeric_limits<float>::max();
-            glm::vec3 closest_pt;
+            int closest_idx = tree.nearestNeighbor(p_src);
+            glm::vec3 closest_pt = target[closest_idx];
 
-            for (size_t j = 0; j < target.size(); j+=10) {
-                glm::vec3 p_tgt = target[j];
-
-                glm::vec3 diff = p_src - p_tgt;
-                float d = glm::dot(diff, diff);
-                
-                if (d < min_dist) {
-                    min_dist = d;
-                    closest_pt = p_tgt;
-                }
+            // Opzionale: Outlier Rejection
+            // Se la distanza è troppa (es > 5 metri), ignoriamo il match
+            if (glm::distance(p_src, closest_pt) < 5.0f) {
+                source_matched.push_back(p_src);
+                target_matched.push_back(closest_pt);
             }
-            source_matched.push_back(p_src);
-            target_matched.push_back(closest_pt);
         }
+
+        if (source_matched.size() < 3) break;
 
         glm::vec3 center_source = getCenterOfMass(source_matched);
         glm::vec3 center_target = getCenterOfMass(target_matched);

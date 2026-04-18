@@ -22,6 +22,7 @@ set(SOURCES
     src/Utils.cpp
     src/Scene.cpp
     src/Odometry.cpp
+    src/KDTree.cpp
 )
 
 # 4. Crea l'eseguibile
