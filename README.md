@@ -1,104 +1,105 @@
-# SLAM – LiDAR odometry e ricostruzione 3D
+# SLAM – LiDAR odometry and 3D reconstruction
 
-Applicazione C++17 che ricostruisce una mappa 3D a partire da una sequenza di
-scansioni LiDAR (file `.pcd`). Ogni nuova scansione viene allineata alla
-precedente con un algoritmo **ICP** (Iterative Closest Point) scritto da zero;
-la posa stimata del sensore serve ad accumulare i punti in una **mappa globale**,
-visualizzata in tempo reale con OpenGL.
+A C++17 application that builds a 3D map from a sequence of LiDAR scans
+(`.pcd` files). Each new scan is aligned to the previous one with an **ICP**
+(Iterative Closest Point) algorithm written from scratch; the estimated sensor
+pose is then used to accumulate the points into a **global map**, rendered in
+real time with OpenGL.
 
-## Caratteristiche
+## Features
 
-- **Odometria con ICP point-to-point**: corrispondenze tramite nearest neighbor,
-  rifiuto degli outlier a soglia di distanza e stima di rotazione e traslazione
-  con SVD (Eigen).
-- **KD-tree** 3D implementato in proprio per accelerare la ricerca dei vicini.
-- **Caricamento asincrono** dei frame: il parsing dei file PCD binari avviene in
-  un thread separato, senza bloccare il rendering.
-- **Visualizzatore OpenGL 3.3** con griglia di riferimento, mappa a nuvola di
-  punti e camera libera in stile FPS.
+- **Point-to-point ICP odometry**: nearest-neighbor correspondences, outlier
+  rejection by distance threshold, and rotation/translation estimation via SVD
+  (Eigen).
+- Custom 3D **KD-tree** to speed up nearest-neighbor search.
+- **Asynchronous loading** of frames: binary PCD files are parsed in a separate
+  thread, without blocking the renderer.
+- **OpenGL 3.3 viewer** with a reference grid, a point-cloud map and a free
+  FPS-style camera.
 
-## Struttura del progetto
+## Project structure
 
 ```
-include/   header (Camera, KDTree, Odometry, Scene, Shader, Utils, Visualizer)
-src/       implementazioni e main
-shaders/   vertex e fragment shader GLSL
+include/   headers (Camera, KDTree, Odometry, Scene, Shader, Utils, Visualizer)
+src/       implementations and main
+shaders/   GLSL vertex and fragment shaders
 ```
 
-| Modulo       | Ruolo                                                         |
-|--------------|---------------------------------------------------------------|
-| `Odometry`   | ICP: stima della trasformazione rigida fra due scansioni      |
-| `KDTree`     | Struttura spaziale per la ricerca del punto più vicino        |
-| `Scene`      | Caricamento asincrono dei frame                               |
-| `Utils`      | Parser PCD binario, input da tastiera                         |
-| `Visualizer` | Rendering di griglia e mappa globale                          |
-| `Camera`     | Camera libera controllata da tastiera e mouse                 |
+| Module       | Role                                                        |
+|--------------|-------------------------------------------------------------|
+| `Odometry`   | ICP: rigid transform estimation between two scans           |
+| `KDTree`     | Spatial structure for closest-point queries                 |
+| `Scene`      | Asynchronous frame loading                                  |
+| `Utils`      | Binary PCD parser, keyboard input                           |
+| `Visualizer` | Rendering of the grid and the global map                    |
+| `Camera`     | Free camera driven by keyboard and mouse                    |
 
-## Dipendenze
+## Dependencies
 
-| Libreria | Uso                          |
-|----------|------------------------------|
-| GLFW     | finestra e input             |
-| GLAD     | caricamento delle funzioni OpenGL |
-| GLM      | matematica per la grafica    |
-| Eigen    | algebra lineare (SVD)        |
+| Library | Purpose                         |
+|---------|---------------------------------|
+| GLFW    | window and input                |
+| GLAD    | OpenGL function loading         |
+| GLM     | graphics math                   |
+| Eigen   | linear algebra (SVD)            |
 
-Le dipendenze si gestiscono con [vcpkg](https://github.com/microsoft/vcpkg).
+Dependencies are managed with [vcpkg](https://github.com/microsoft/vcpkg).
 
-## Compilazione
+## Building
 
-Prerequisiti: CMake, un compilatore C++17 (ad esempio Visual Studio 2022 su
-Windows) e vcpkg.
+Requirements: CMake, a C++17 compiler (e.g. Visual Studio 2022 on Windows) and
+vcpkg.
 
 ```bash
 vcpkg install glfw3 glm glad eigen3
-cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=<percorso-vcpkg>/scripts/buildsystems/vcpkg.cmake
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=<path-to-vcpkg>/scripts/buildsystems/vcpkg.cmake
 cmake --build build --config Release
 ```
 
-Gli shader vengono copiati nella cartella di build durante la configurazione.
-Esegui il programma dalla cartella `build`, in modo che trovi `shaders/`.
+The shaders are copied into the build folder at configure time. Run the
+program from the `build` folder so that it can find `shaders/`.
 
 ## Dataset
 
-Il programma legge una cartella di file `.pcd` **binari** (campi XYZ in float
-a 32 bit) ordinati per nome. È stato provato con il dataset Anovox.
+The program reads a folder of **binary** `.pcd` files (XYZ fields as 32-bit
+floats), sorted by name. It has been tried with the Anovox sample data.
 
-Il percorso della cartella è per ora fisso in `src/main.cpp` (variabile
-`pcdPath`): modificalo con la posizione del tuo dataset prima di compilare.
+The folder path is currently hard-coded in `src/main.cpp` (the `pcdPath`
+variable): change it to the location of your dataset before building.
 
-## Controlli
+## Controls
 
-| Tasto         | Azione                                   |
-|---------------|------------------------------------------|
-| `W` `A` `S` `D` | muove la camera                        |
-| `E` / `Q`     | sale / scende                            |
-| `TAB`         | attiva o disattiva il controllo col mouse |
-| `SPAZIO`      | pausa / riprendi la ricostruzione        |
-| `ESC`         | esce                                     |
+| Key             | Action                              |
+|-----------------|-------------------------------------|
+| `W` `A` `S` `D` | move the camera                     |
+| `E` / `Q`       | move up / down                      |
+| `TAB`           | toggle mouse look                   |
+| `SPACE`         | pause / resume the reconstruction   |
+| `ESC`           | quit                                |
 
-Al termine della sequenza la ricostruzione si mette in pausa e puoi esplorare
-liberamente la mappa finale.
+When the sequence ends the reconstruction pauses, and you can freely explore
+the final map.
 
-## Come funziona
+## How it works
 
-1. Si carica il frame *t* e lo si confronta con il frame *t−1*.
-2. Per ogni punto sottocampionato si cerca il vicino più prossimo nel KD-tree;
-   le coppie troppo distanti vengono scartate.
-3. Si calcolano i baricentri e la matrice di covarianza incrociata; la sua SVD
-   fornisce la rotazione ottima, da cui si ricava la traslazione.
-4. Il passo viene applicato e si ripete per un numero fisso di iterazioni.
-5. La trasformazione relativa aggiorna la posa del sensore, che porta i punti
-   del frame corrente nel sistema di riferimento globale.
+1. Frame *t* is loaded and compared with frame *t−1*.
+2. For each subsampled point, the nearest neighbor is looked up in the KD-tree;
+   pairs that are too far apart are discarded.
+3. The centroids and the cross-covariance matrix are computed; its SVD gives the
+   optimal rotation, from which the translation follows.
+4. The step is applied and the process repeats for a fixed number of iterations.
+5. The relative transform updates the sensor pose, which carries the points of
+   the current frame into the global reference frame.
 
-## Limiti e possibili sviluppi
+## Limitations and future work
 
-- Il sottocampionamento è fisso e non c'è un criterio di convergenza per ICP.
-- Nessuna chiusura di loop né ottimizzazione globale (pose graph): la deriva si
-  accumula lungo la traiettoria.
-- Percorso del dataset da rendere configurabile (argomento da riga di comando).
-- Supporto a PCD con campi aggiuntivi (intensità, colore) e formato ASCII.
+- Subsampling is fixed and ICP has no convergence criterion.
+- No loop closure or global optimization (pose graph): drift accumulates along
+  the trajectory.
+- The dataset path should be made configurable (command-line argument).
+- Support for PCD files with extra fields (intensity, color) and the ASCII
+  format.
 
-## Licenza
+## License
 
-Da definire.
+To be defined.
